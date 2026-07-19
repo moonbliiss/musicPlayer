@@ -1,0 +1,205 @@
+?? Реализация сервера (Node.js + Express)
+1. Установите зависимости
+bash
+npm init -y
+npm install express music-metadata cors
+2. Создайте файл server.js
+js
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const cors = require('cors');
+const musicMetadata = require('music-metadata');
+
+const app = express();
+const PORT = 3001;
+
+// ?? Путь к папке с музыкой (можно вынести в переменную окружения)
+const MUSIC_DIR = '/home/user/Music'; // замените на свой путь
+
+// Разрешаем запросы с фронтенда
+app.use(cors());
+
+// Раздаём статику из папки с музыкой (чтобы файлы были доступны по URL)
+app.use('/audio', express.static(MUSIC_DIR));
+
+// Эндпоинт: получить список всех аудиофайлов с метаданными
+app.get('/api/songs', async (req, res) => {
+  try {
+    const files = await fs.promises.readdir(MUSIC_DIR);
+    // Фильтруем аудиофайлы (можно расширить список)
+    const audioExtensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a'];
+    const audioFiles = files.filter(file =>
+      audioExtensions.includes(path.extname(file).toLowerCase())
+    );
+
+    const songs = [];
+    for (const fileName of audioFiles) {
+      const filePath = path.join(MUSIC_DIR, fileName);
+      try {
+        // Читаем метаданные
+        const metadata = await musicMetadata.parseFile(filePath);
+        const { common, format } = metadata;
+        songs.push({
+          id: fileName,
+          title: common.title || path.basename(fileName, path.extname(fileName)),
+          artist: common.artist || 'Неизвестный исполнитель',
+          album: common.album || 'Неизвестный альбом',
+          duration: format.duration || 0,
+          url: `/audio/${encodeURIComponent(fileName)}`, // URL для воспроизведения
+        });
+      } catch (err) {
+        console.error(`Не удалось прочитать метаданные файла ${fileName}:`, err);
+        // Добавляем файл без метаданных (просто по имени)
+        songs.push({
+          id: fileName,
+          title: path.basename(fileName, path.extname(fileName)),
+          artist: 'Неизвестно',
+          album: 'Неизвестно',
+          duration: 0,
+          url: `/audio/${encodeURIComponent(fileName)}`,
+        });
+      }
+    }
+    res.json(songs);
+  } catch (err) {
+    console.error('Ошибка чтения папки:', err);
+    res.status(500).json({ error: 'Не удалось прочитать папку с музыкой' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Сервер запущен на http://localhost:${PORT}`);
+  console.log(`Читает музыку из: ${MUSIC_DIR}`);
+});
+3. Запустите сервер
+bash
+node server.js
+Теперь сервер слушает на порту 3001 и отдаёт:
+
+список песен по http://localhost:3001/api/songs
+
+аудиофайлы по http://localhost:3001/audio/имя_файла.mp3
+
+??? Настройка фронтенда (React + Vite)
+1. Установите зависимости (если ещё нет)
+Ничего особенного не нужно.
+
+2. Создайте компонент для загрузки песен с сервера
+tsx
+import React, { useState, useEffect } from 'react';
+
+interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+  url: string;
+}
+
+function App() {
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSongs = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/songs');
+        if (!response.ok) throw new Error('Ошибка загрузки');
+        const data = await response.json();
+        setSongs(data);
+      } catch (err) {
+        console.error('Не удалось загрузить песни:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSongs();
+  }, []);
+
+  if (loading) return <div>Загрузка музыки...</div>;
+
+  return (
+    <div>
+      <h1>Мой плеер</h1>
+      <ul>
+        {songs.map(song => (
+          <li key={song.id}>
+            <strong>{song.title}</strong> — {song.artist} ({song.album})
+            <br />
+            <audio controls src={`http://localhost:3001${song.url}`} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default App;
+3. Настройте Vite прокси (для удобства)
+В файле vite.config.ts добавьте прокси, чтобы не писать полный URL каждый раз:
+
+ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3001',
+      '/audio': 'http://localhost:3001',
+    },
+  },
+});
+Тогда во фронтенде можно использовать относительные пути:
+
+ts
+fetch('/api/songs');
+// и
+<audio src={`${song.url}`} /> // где song.url уже начинается с /audio/...
+?? Вариант с возможностью ввода пути вручную
+Вы можете добавить на страницу поле ввода, чтобы пользователь сам указывал путь к папке, и отправлять его на сервер.
+
+На сервере добавьте эндпоинт для приёма пути (но будьте осторожны с безопасностью — лучше ограничить доступ только к определённым директориям или использовать fs.realpath для проверки).
+
+js
+app.post('/api/set-path', express.json(), (req, res) => {
+  const { path: userPath } = req.body;
+  if (!userPath) return res.status(400).json({ error: 'Путь не указан' });
+  // Можно проверить, что путь существует и является директорией
+  try {
+    if (!fs.existsSync(userPath) || !fs.statSync(userPath).isDirectory()) {
+      return res.status(400).json({ error: 'Указанный путь не является директорией' });
+    }
+    // Обновляем переменную (в реальном проекте лучше перезапускать сканирование)
+    MUSIC_DIR = userPath;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Ошибка проверки пути' });
+  }
+});
+Но в простом варианте лучше просто задавать путь в коде сервера один раз.
+
+? Плюсы этого подхода
+Никаких браузерных диалогов — всё на стороне сервера.
+
+Работает в любом браузере / встроенном движке.
+
+Можно легко сменить папку — просто поменять конфиг или сделать интерфейс для ввода пути.
+
+Метаданные читаются надёжно через music-metadata.
+
+?? Минусы
+Требуется запускать сервер отдельно (или в фоне).
+
+Если вы распространяете приложение, пользователям придётся запускать и сервер, и фронтенд (можно объединить в один исполняемый файл, например, с помощью pkg или electron).
+
+?? Дополнительная идея: совместить сервер и фронтенд
+Если вы хотите, чтобы пользователь не заморачивался с запуском сервера, можно упаковать сервер в отдельное приложение (например, с помощью pkg или electron), которое автоматически запускает и сервер, и открывает окно браузера.
+
+?? Итог для вашей задачи
+Поскольку вы не можете менять C++ код, но можете добавить серверную часть, это идеальное решение. Вы один раз задаёте путь к папке с музыкой в конфиге сервера, и при запуске приложения музыка автоматически подгружается, без всяких вопросов и диалогов.
+
+Если вы хотите сохранить возможность выбора папки через интерфейс (ввод пути вручную) — добавьте поле ввода и отправляйте путь на сервер (только не забудьте про безопасность, если приложение будет публичным).

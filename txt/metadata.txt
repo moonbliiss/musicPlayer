@@ -1,0 +1,92 @@
+Подход 1: Библиотека music-metadata-browser (рекомендуемый)
+Это наиболее популярная и простая в использовании библиотека, созданная специально для парсинга метаданных аудио в браузере. Она поддерживает большинство форматов и тегов.
+
+1. Установка
+
+bash
+npm install music-metadata-browser
+2. Создание компонента для загрузки и чтения файла
+
+Вот пример компонента, который позволяет пользователю выбрать файл и выводит его метаданные.
+
+tsx
+import React, { useState } from 'react';
+import * as mm from 'music-metadata-browser';
+
+// Тип для метаданных, которые мы хотим получить
+interface AudioMetadata {
+  title?: string;
+  artist?: string;
+  album?: string;
+  duration?: number;
+}
+
+const AudioMetadataReader: React.FC = () => {
+  const [metadata, setMetadata] = useState<AudioMetadata | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Обработчик выбора файла
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setError(null);
+    setMetadata(null);
+
+    try {
+      // Парсим метаданные из выбранного файла
+      const metadata = await mm.parseBlob(file);
+
+      // Извлекаем нужные поля
+      const { common, format } = metadata;
+      const extractedMetadata: AudioMetadata = {
+        title: common.title,
+        artist: common.artist,
+        album: common.album,
+        duration: format.duration,
+      };
+
+      setMetadata(extractedMetadata);
+    } catch (err) {
+      console.error('Ошибка при чтении метаданных:', err);
+      setError('Не удалось прочитать метаданные файла. Возможно, формат не поддерживается.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Загрузите аудиофайл для чтения метаданных</h2>
+      <input type="file" accept="audio/*" onChange={handleFileChange} disabled={loading} />
+
+      {loading && <p>Загрузка метаданных...</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      {metadata && (
+        <div>
+          <h3>Метаданные:</h3>
+          <ul>
+            <li><strong>Название:</strong> {metadata.title || 'Не указано'}</li>
+            <li><strong>Исполнитель:</strong> {metadata.artist || 'Не указан'}</li>
+            <li><strong>Альбом:</strong> {metadata.album || 'Не указан'}</li>
+            <li><strong>Длительность:</strong> {metadata.duration ? `${Math.round(metadata.duration)} секунд` : 'Не указана'}</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AudioMetadataReader;
+Как это работает:
+
+Пользователь выбирает файл через <input type="file">.
+
+Функция handleFileChange вызывается при выборе.
+
+mm.parseBlob(file) читает и парсит метаданные из загруженного файла.
+
+Результат содержит объект common со стандартными тегами и format с технической информацией, включая duration.

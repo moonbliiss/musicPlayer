@@ -1,0 +1,99 @@
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr; /* ? две колонки: сайдбар 320px, контент — остальное */
+  height: 100vh;
+  overflow: hidden; /* скрывает всё, что выходит за пределы */
+}
+Если вы хотите, чтобы сайдбар и контент занимали всю высоту, а плеер был снизу, то структура должна быть немного иной (с тремя строками).
+
+?? Структура с сайдбаром, контентом и плеером
+Лучше сделать так:
+
+css
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr; /* сайдбар | контент */
+  grid-template-rows: 1fr auto;     /* контент занимает всё, плеер — по высоте */
+  height: 100vh;
+}
+
+.sidebar {
+  grid-row: 1 / -1; /* занимает всю высоту (обе строки) */
+  display: flex;
+  flex-direction: column;
+  overflow: auto;    /* скролл внутри сайдбара */
+  background: #f5f5f5;
+  padding: 10px;
+}
+
+.main-content {
+  grid-row: 1 / 2;   /* только первая строка */
+  overflow: auto;    /* скролл для контента */
+  padding: 20px;
+}
+
+.player {
+  grid-row: 2 / 3;   /* вторая строка */
+  grid-column: 2 / 3; /* только под контентом, не под сайдбаром */
+  background: #222;
+  color: white;
+  padding: 10px;
+}
+JSX-структура:
+
+tsx
+<div className="app">
+  <aside className="sidebar">Сайдбар</aside>
+  <main className="main-content">Контент</main>
+  <footer className="player">Плеер</footer>
+</div>
+?? Центрирование внутри сайдбара
+Если вы хотите центрировать элементы внутри сайдбара (например, ссылки или кнопки), используйте flex внутри .sidebar:
+
+css
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;      /* центрирование по горизонтали */
+  justify-content: flex-start; /* или center, если нужно по вертикали */
+  gap: 10px;
+}
+Или для отдельного блока внутри сайдбара:
+
+css
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+?? Центрирование внутри основной области
+Если нужно центрировать содержимое страницы (например, список песен), используйте flex или grid внутри .main-content:
+
+css
+.main-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* по горизонтали */
+  justify-content: center; /* по вертикали (если контент маленький) */
+  height: 100%;
+}
+Или для списка песен, который должен занимать всю ширину, но быть отцентрованным:
+
+css
+.song-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 600px; /* ограничение ширины */
+  margin: 0 auto;   /* центрирование блока */
+}
+?? Итог
+Исправьте grid-display-column на grid-template-columns.
+
+Если нужен плеер внизу, добавьте вторую строку (grid-template-rows: 1fr auto) и разместите плеер во второй строке.
+
+Для центрирования используйте align-items: center (во flex) или place-items: center (в grid).
+
+Если вы хотите, чтобы плеер был приклеен к низу, а сайдбар был на всю высоту, предложенный выше вариант с grid-строками подойдёт идеально.

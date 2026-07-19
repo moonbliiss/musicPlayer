@@ -1,0 +1,168 @@
+﻿ Компонент SpeedControl
+tsx
+// components/SpeedControl.tsx
+import React, { useState, useEffect, useRef } from 'react';
+
+interface SpeedControlProps {
+  audioRef: React.RefObject<HTMLAudioElement>; // ссылка на аудио-элемент
+  min?: number;      // минимальная скорость (по умолчанию 0.5)
+  max?: number;      // максимальная скорость (по умолчанию 2.0)
+  step?: number;     // шаг изменения (по умолчанию 0.1)
+  initialSpeed?: number; // начальная скорость (по умолчанию 1.0)
+  onSpeedChange?: (speed: number) => void; // колбэк при изменении
+}
+
+const SpeedControl: React.FC<SpeedControlProps> = ({
+  audioRef,
+  min = 0.5,
+  max = 2.0,
+  step = 0.1,
+  initialSpeed = 1.0,
+  onSpeedChange,
+}) => {
+  const [speed, setSpeed] = useState<number>(initialSpeed);
+  const [isDragging, setIsDragging] = useState(false);
+  const displayRef = useRef<HTMLSpanElement>(null);
+
+  // Применяем скорость к аудио-элементу
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+    if (onSpeedChange) {
+      onSpeedChange(speed);
+    }
+  }, [speed, audioRef, onSpeedChange]);
+
+  // Синхронизация с внешним изменением speed (если нужно)
+  useEffect(() => {
+    if (audioRef.current && audioRef.current.playbackRate !== speed) {
+      setSpeed(audioRef.current.playbackRate);
+    }
+  }, [audioRef]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newSpeed = parseFloat(e.target.value);
+    setSpeed(newSpeed);
+  };
+
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
+
+  // Форматируем отображение (например, 1.0x)
+  const displayValue = speed.toFixed(1) + 'x';
+
+  return (
+    <div className="speed-control" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <label htmlFor="speed-slider" style={{ fontSize: '14px', color: '#aaa' }}>
+        Скорость
+      </label>
+      <input
+        id="speed-slider"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={speed}
+        onChange={handleChange}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        style={{
+          width: '120px',
+          height: '4px',
+          background: '#555',
+          borderRadius: '2px',
+          outline: 'none',
+          cursor: 'pointer',
+        }}
+      />
+      <span
+        ref={displayRef}
+        style={{
+          minWidth: '40px',
+          fontSize: '14px',
+          color: isDragging ? '#fff' : '#aaa',
+          transition: 'color 0.15s',
+        }}
+      >
+        {displayValue}
+      </span>
+    </div>
+  );
+};
+
+export default SpeedControl;
+🧩 Как использовать в плеере
+tsx
+// Player.tsx (фрагмент)
+import React, { useRef, useState } from 'react';
+import SpeedControl from './components/SpeedControl';
+
+const Player = () => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTrack, setCurrentTrack] = useState<Song | null>(null);
+
+  // ... другие функции (play, pause и т.д.)
+
+  return (
+    <div className="player">
+      <audio ref={audioRef} src={currentTrack?.url} controls={false} />
+      
+      <div className="player-controls">
+        {/* Кнопки play/pause, prev/next */}
+        <SpeedControl audioRef={audioRef} min={0.5} max={2.5} step={0.1} />
+      </div>
+    </div>
+  );
+};
+🎨 Дополнительные стили (опционально)
+Если хотите кастомизировать ползунок, добавьте в глобальный CSS:
+
+css
+/* Стили для ползунка в Chrome/Safari/Edge */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4a9eff;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(74, 158, 255, 0.4);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4a9eff;
+  cursor: pointer;
+  border: none;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+📌 Особенности
+Шаг 0.1 — позволяет точно настроить скорость.
+
+Диапазон 0.5 – 2.5 — покрывает основные нужды (можно изменить через пропсы).
+
+Отображение — показывает текущее значение в формате 1.0x.
+
+Обратная связь — цвет значения меняется при перетаскивании.
+
+Синхронизация — если скорость меняется извне (например, клавишами), компонент подстроится.
+
+⚙️ Альтернатива: предустановленные кнопки
+Если ползунок не подходит по дизайну, можно использовать кнопки с фиксированными значениями:
+
+tsx
+<button onClick={() => setSpeed(0.75)}>0.75x</button>
+<button onClick={() => setSpeed(1.0)}>1.0x</button>
+<button onClick={() => setSpeed(1.25)}>1.25x</button>
+<button onClick={() => setSpeed(1.5)}>1.5x</button>
+<button onClick={() => setSpeed(2.0)}>2.0x</button>
+Но ползунок даёт больше гибкости.
+
+Теперь вы можете легко добавить регулировку скорости в ваш плеер. Если нужна адаптация под конкретный дизайн — просто подправьте стили. 🚀
